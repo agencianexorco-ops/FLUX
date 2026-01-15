@@ -1,25 +1,20 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo } from 'react';
-import { Transaction, CreditCard, Goal, Category, Settings, AppMode, TransactionType, Notification, TransactionStatus } from '../types';
+import { Transaction, CreditCard, Goal, Category, TransactionType, Notification, TransactionStatus, Profile } from '../types';
 import useLocalStorage from '../hooks/useLocalStorage';
+import { supabase } from '../supabase/client';
+import { useAuth } from './AuthContext';
 
-const initialSettings: Settings = {
-  userName: 'Usuário',
-  mode: AppMode.INDIVIDUAL,
-  partnerName: '',
-  theme: 'dark',
-};
-
-const defaultCategories: Category[] = [
-    { id: 'cat-1', name: 'Alimentação', type: TransactionType.EXPENSE },
-    { id: 'cat-2', name: 'Moradia', type: TransactionType.EXPENSE },
-    { id: 'cat-3', name: 'Transporte', type: TransactionType.EXPENSE },
-    { id: 'cat-4', name: 'Lazer', type: TransactionType.EXPENSE },
-    { id: 'cat-5', name: 'Assinatura', type: TransactionType.EXPENSE },
-    { id: 'cat-6', name: 'Pagamento de Fatura', type: TransactionType.EXPENSE },
-    { id: 'cat-7', name: 'Salário', type: TransactionType.INCOME },
-    { id: 'cat-8', name: 'Freelancer', type: TransactionType.INCOME },
-    { id: 'cat-9', name: 'Investimento', type: TransactionType.INCOME },
+const defaultCategories: Omit<Category, 'id' | 'user_id' | 'created_at'>[] = [
+    { name: 'Alimentação', type: TransactionType.EXPENSE },
+    { name: 'Moradia', type: TransactionType.EXPENSE },
+    { name: 'Transporte', type: TransactionType.EXPENSE },
+    { name: 'Lazer', type: TransactionType.EXPENSE },
+    { name: 'Assinatura', type: TransactionType.EXPENSE },
+    { name: 'Pagamento de Fatura', type: TransactionType.EXPENSE },
+    { name: 'Salário', type: TransactionType.INCOME },
+    { name: 'Freelancer', type: TransactionType.INCOME },
+    { name: 'Investimento', type: TransactionType.INCOME },
 ];
 
 interface AppState {
@@ -28,46 +23,80 @@ interface AppState {
   cards: CreditCard[];
   goals: Goal[];
   categories: Category[];
-  settings: Settings;
+  profile: Profile | null;
   selectedDate: Date;
   notifications: Notification[];
   setSelectedDate: (date: Date) => void;
-  addTransaction: (transaction: Omit<Transaction, 'id'>) => void;
-  addMultipleTransactions: (transactions: Omit<Transaction, 'id'>[]) => void;
-  updateTransaction: (transaction: Transaction) => void;
-  deleteTransaction: (id: string) => void;
-  addCard: (card: Omit<CreditCard, 'id'>) => void;
-  updateCard: (card: CreditCard) => void;
-  deleteCard: (id: string) => void;
-  addGoal: (goal: Omit<Goal, 'id' | 'currentAmount'>) => void;
-  updateGoal: (goal: Goal) => void;
-  deleteGoal: (id: string) => void;
-  addCategory: (category: Omit<Category, 'id'>) => void;
-  updateCategory: (category: Category) => void;
-  deleteCategory: (id: string) => void;
-  updateSettings: (settings: Settings) => void;
+  addTransaction: (transaction: Omit<Transaction, 'id' | 'user_id' | 'created_at'>) => Promise<void>;
+  addMultipleTransactions: (transactions: Omit<Transaction, 'id' | 'user_id' | 'created_at'>[]) => Promise<void>;
+  updateTransaction: (transaction: Transaction) => Promise<void>;
+  deleteTransaction: (id: string) => Promise<void>;
+  addCard: (card: Omit<CreditCard, 'id' | 'user_id' | 'created_at'>) => Promise<void>;
+  updateCard: (card: CreditCard) => Promise<void>;
+  deleteCard: (id: string) => Promise<void>;
+  addGoal: (goal: Omit<Goal, 'id' | 'user_id' | 'created_at' | 'currentAmount'>) => Promise<void>;
+  updateGoal: (goal: Goal) => Promise<void>;
+  deleteGoal: (id: string) => Promise<void>;
+  addCategory: (category: Omit<Category, 'id' | 'user_id' | 'created_at'>) => Promise<void>;
+  updateCategory: (category: Category) => Promise<void>;
+  deleteCategory: (id: string) => Promise<void>;
   markNotificationAsRead: (id: string) => void;
 }
 
 const AppContext = createContext<AppState | undefined>(undefined);
 
 export const AppProvider = ({ children }: { children: ReactNode }) => {
-  const [transactions, setTransactions] = useLocalStorage<Transaction[]>('flux_transactions', []);
-  const [cards, setCards] = useLocalStorage<CreditCard[]>('flux_cards', []);
-  const [goals, setGoals] = useLocalStorage<Goal[]>('flux_goals', []);
-  const [categories, setCategories] = useLocalStorage<Category[]>('flux_categories', defaultCategories);
-  const [settings, setSettings] = useLocalStorage<Settings>('flux_settings', initialSettings);
+  const { user, profile, loading } = useAuth();
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [cards, setCards] = useState<CreditCard[]>([]);
+  const [goals, setGoals] = useState<Goal[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [notifications, setNotifications] = useLocalStorage<Notification[]>('flux_notifications', []);
   const [selectedDate, setSelectedDate] = useState(new Date());
 
   useEffect(() => {
-    const body = document.body;
-    if (settings.theme === 'light') {
-      body.classList.remove('dark');
+    if (profile?.theme === 'light') {
+      document.body.classList.remove('dark');
     } else {
-      body.classList.add('dark');
+      document.body.classList.add('dark');
     }
-  }, [settings.theme]);
+  }, [profile?.theme]);
+
+  // Fetch all user data
+  useEffect(() => {
+    const fetchData = async () => {
+        if (!user) return;
+
+        const [
+            transactionsRes,
+            cardsRes,
+            goalsRes,
+            categoriesRes
+        ] = await Promise.all([
+            supabase.from('transactions').select('*').eq('user_id', user.id),
+            supabase.from('cards').select('*').eq('user_id', user.id),
+            supabase.from('goals').select('*').eq('user_id', user.id),
+            supabase.from('categories').select('*').eq('user_id', user.id)
+        ]);
+        
+        if (transactionsRes.data) setTransactions(transactionsRes.data);
+        if (cardsRes.data) setCards(cardsRes.data);
+        if (goalsRes.data) setGoals(goalsRes.data);
+        
+        if (categoriesRes.data && categoriesRes.data.length > 0) {
+            setCategories(categoriesRes.data);
+        } else {
+             // Seed default categories for new user
+            const categoriesToSeed = defaultCategories.map(c => ({...c, user_id: user.id}));
+            const { data: newCategories } = await supabase.from('categories').insert(categoriesToSeed).select();
+            if(newCategories) setCategories(newCategories);
+        }
+    };
+    
+    if (user && !loading) {
+        fetchData();
+    }
+  }, [user, loading]);
 
   const selectedYear = selectedDate.getFullYear();
   const selectedMonth = selectedDate.getMonth();
@@ -90,154 +119,151 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     setNotifications(prev => [newNotif, ...prev].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
   }, [setNotifications]);
 
-  useEffect(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const dueAndOverdueNotifications = transactions
-      .filter(t => t.type === TransactionType.EXPENSE && t.status === TransactionStatus.PLANNED)
-      .map(t => {
-          const dueDate = new Date(t.date);
-          const dueDateUTC = new Date(Date.UTC(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate()));
-          const todayUTC = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()));
-          const timeDiff = dueDateUTC.getTime() - todayUTC.getTime();
-          const dayDiff = Math.ceil(timeDiff / (1000 * 3600 * 24));
-
-          if (dayDiff < 0) {
-              return {
-                  id: `noti-${t.id}-overdue`, message: `Conta "${t.description}" está vencida!`, date: new Date().toISOString(), read: false, type: 'overdue', link: t.id
-              } as Notification;
-          } else if (dayDiff <= 7) {
-              const message = dayDiff === 0 ? `Conta "${t.description}" vence hoje.` : `Conta "${t.description}" vence em ${dayDiff} ${dayDiff === 1 ? 'dia' : 'dias'}.`;
-              return {
-                  id: `noti-${t.id}-due`, message, date: new Date().toISOString(), read: false, type: 'due', link: t.id
-              } as Notification;
-          }
-          return null;
-      }).filter(Boolean) as Notification[];
-      
-      setNotifications(prev => [...prev.filter(n => n.type !== 'due' && n.type !== 'overdue'), ...dueAndOverdueNotifications]
-          .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-      );
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [transactions, selectedDate]); // Rerun when transactions change or month changes
-
-
   const markNotificationAsRead = useCallback((id: string) => {
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
   }, [setNotifications]);
 
-  const addTransaction = useCallback((transaction: Omit<Transaction, 'id'>) => {
-    const transactionDate = new Date(`${transaction.date}T12:00:00`);
-    if (transactionDate.getFullYear() !== selectedYear || transactionDate.getMonth() !== selectedMonth) {
-      throw new Error("Erro: A data do lançamento não corresponde ao mês atualmente selecionado.");
-    }
-    const newTransaction = { ...transaction, id: crypto.randomUUID() };
-    setTransactions(prev => [...prev, newTransaction]);
-    const typeText = newTransaction.type === 'income' ? 'Receita' : 'Despesa';
-    addNotification(`${typeText} "${newTransaction.description}" criada.`);
-  }, [setTransactions, selectedYear, selectedMonth, addNotification]);
+ const addTransaction = async (transaction: Omit<Transaction, 'id' | 'user_id' | 'created_at'>) => {
+    if (!user) return;
+    const { data, error } = await supabase.from('transactions').insert({ ...transaction, user_id: user.id }).select().single();
+    if (error) throw error;
+    setTransactions(prev => [...prev, data]);
+    const typeText = data.type === 'income' ? 'Receita' : 'Despesa';
+    addNotification(`${typeText} "${data.description}" criada.`);
+  };
   
-  const addMultipleTransactions = useCallback((transactionsToAdd: Omit<Transaction, 'id'>[]) => {
-    const newTransactions = transactionsToAdd.map(t => ({ ...t, id: crypto.randomUUID() }));
-    setTransactions(prev => [...prev, ...newTransactions]);
-    
-    const first = newTransactions[0];
-    const totalValue = newTransactions.reduce((sum, t) => sum + t.amount, 0);
+  const addMultipleTransactions = async (transactionsToAdd: Omit<Transaction, 'id' | 'user_id' | 'created_at'>[]) => {
+    if (!user) return;
+    const newTransactions = transactionsToAdd.map(t => ({ ...t, user_id: user.id }));
+    const { data, error } = await supabase.from('transactions').insert(newTransactions).select();
+    if (error) throw error;
+    setTransactions(prev => [...prev, ...data]);
+    const first = data[0];
+    const totalValue = data.reduce((sum, t) => sum + t.amount, 0);
     const typeText = first.type === 'income' ? 'Receita' : 'Despesa';
-    addNotification(`${typeText} parcelada "${first.description.split(' (')[0]}" (${newTransactions.length}x) no valor total de ${totalValue.toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'})} criada.`);
-  }, [setTransactions, addNotification]);
+    addNotification(`${typeText} parcelada "${first.description.split(' (')[0]}" (${data.length}x) no valor total de ${totalValue.toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'})} criada.`);
+  };
 
-  const updateTransaction = useCallback((updatedTransaction: Transaction) => {
-    const transactionDate = new Date(`${updatedTransaction.date}T12:00:00`);
-    if (transactionDate.getFullYear() !== selectedYear || transactionDate.getMonth() !== selectedMonth) {
-      throw new Error("Erro: A data do lançamento editado não corresponde ao mês atualmente selecionado.");
-    }
-    setTransactions(prev => prev.map(t => t.id === updatedTransaction.id ? updatedTransaction : t));
-    addNotification(`Lançamento "${updatedTransaction.description}" atualizado.`);
-  }, [setTransactions, selectedYear, selectedMonth, addNotification]);
+  const updateTransaction = async (updatedTransaction: Transaction) => {
+    if (!user) return;
+    const { id, created_at, user_id, ...updateData } = updatedTransaction;
+    const { data, error } = await supabase.from('transactions').update(updateData).eq('id', id).eq('user_id', user.id).select().single();
+    if (error) throw error;
+    setTransactions(prev => prev.map(t => t.id === id ? data : t));
+    addNotification(`Lançamento "${data.description}" atualizado.`);
+  };
 
-  const deleteTransaction = useCallback((id: string) => {
+  const deleteTransaction = async (id: string) => {
+    if (!user) return;
     const transactionToDelete = transactions.find(t => t.id === id);
     if (!transactionToDelete) return;
 
     const parentId = transactionToDelete.installments?.parentId;
     if (parentId) {
+        const { error } = await supabase.from('transactions').delete().eq('installments->>parentId', parentId).eq('user_id', user.id);
+        if(error) throw error;
         setTransactions(prev => prev.filter(t => t.installments?.parentId !== parentId));
         addNotification(`Parcelamento "${transactionToDelete.description.split(' (')[0]}" e todas as suas parcelas foram excluídos.`);
     } else {
+        const { error } = await supabase.from('transactions').delete().eq('id', id).eq('user_id', user.id);
+        if (error) throw error;
         setTransactions(prev => prev.filter(t => t.id !== id));
         addNotification(`Lançamento "${transactionToDelete.description}" excluído.`);
     }
-  }, [transactions, setTransactions, addNotification]);
+  };
 
-  const addCard = useCallback((card: Omit<CreditCard, 'id'>) => {
-    setCards(prev => [...prev, { ...card, id: crypto.randomUUID() }]);
-    addNotification(`Cartão "${card.bankName}" adicionado.`);
-  }, [setCards, addNotification]);
+  const addCard = async (card: Omit<CreditCard, 'id' | 'user_id' | 'created_at'>) => {
+    if (!user) return;
+    const { data, error } = await supabase.from('cards').insert({ ...card, user_id: user.id }).select().single();
+    if (error) throw error;
+    setCards(prev => [...prev, data]);
+    addNotification(`Cartão "${data.bankName}" adicionado.`);
+  };
 
-  const updateCard = useCallback((updatedCard: CreditCard) => {
-    setCards(prev => prev.map(c => c.id === updatedCard.id ? updatedCard : c));
-    addNotification(`Cartão "${updatedCard.bankName}" atualizado.`);
-  }, [setCards, addNotification]);
+  const updateCard = async (updatedCard: CreditCard) => {
+    if (!user) return;
+    const { id, created_at, user_id, ...updateData } = updatedCard;
+    const { data, error } = await supabase.from('cards').update(updateData).eq('id', id).eq('user_id', user.id).select().single();
+    if (error) throw error;
+    setCards(prev => prev.map(c => c.id === id ? data : c));
+    addNotification(`Cartão "${data.bankName}" atualizado.`);
+  };
 
-  const deleteCard = useCallback((id: string) => {
+  const deleteCard = async (id: string) => {
+    if (!user) return;
     const cardToDelete = cards.find(c => c.id === id);
     if(cardToDelete) {
+        const { error } = await supabase.from('cards').delete().eq('id', id).eq('user_id', user.id);
+        if (error) throw error;
         setCards(prev => prev.filter(c => c.id !== id));
         addNotification(`Cartão "${cardToDelete.bankName}" excluído.`);
     }
-  }, [cards, setCards, addNotification]);
+  };
   
-  const addGoal = useCallback((goal: Omit<Goal, 'id' | 'currentAmount'>) => {
-    setGoals(prev => [...prev, { ...goal, id: crypto.randomUUID(), currentAmount: goal.initialAmount }]);
-    addNotification(`Meta "${goal.name}" criada.`);
-  }, [setGoals, addNotification]);
+  const addGoal = async (goal: Omit<Goal, 'id' | 'user_id' | 'created_at' | 'currentAmount'>) => {
+    if (!user) return;
+    const { data, error } = await supabase.from('goals').insert({ ...goal, currentAmount: goal.initialAmount, user_id: user.id }).select().single();
+    if (error) throw error;
+    setGoals(prev => [...prev, data]);
+    addNotification(`Meta "${data.name}" criada.`);
+  };
 
-  const updateGoal = useCallback((updatedGoal: Goal) => {
-    setGoals(prev => prev.map(g => g.id === updatedGoal.id ? updatedGoal : g));
-    addNotification(`Meta "${updatedGoal.name}" atualizada.`);
-  }, [setGoals, addNotification]);
+  const updateGoal = async (updatedGoal: Goal) => {
+    if (!user) return;
+    const { id, created_at, user_id, ...updateData } = updatedGoal;
+    const { data, error } = await supabase.from('goals').update(updateData).eq('id', id).eq('user_id', user.id).select().single();
+    if (error) throw error;
+    setGoals(prev => prev.map(g => g.id === id ? data : g));
+    addNotification(`Meta "${data.name}" atualizada.`);
+  };
 
-  const deleteGoal = useCallback((id: string) => {
+  const deleteGoal = async (id: string) => {
+    if (!user) return;
     const goalToDelete = goals.find(g => g.id === id);
     if(goalToDelete) {
+        const { error } = await supabase.from('goals').delete().eq('id', id).eq('user_id', user.id);
+        if (error) throw error;
         setGoals(prev => prev.filter(g => g.id !== id));
         addNotification(`Meta "${goalToDelete.name}" excluída.`);
     }
-  }, [goals, setGoals, addNotification]);
+  };
 
-  const addCategory = useCallback((category: Omit<Category, 'id'>) => {
-    setCategories(prev => [...prev, { ...category, id: crypto.randomUUID() }]);
-    addNotification(`Categoria "${category.name}" criada.`);
-  }, [setCategories, addNotification]);
+  const addCategory = async (category: Omit<Category, 'id' | 'user_id' | 'created_at'>) => {
+    if (!user) return;
+    const { data, error } = await supabase.from('categories').insert({ ...category, user_id: user.id }).select().single();
+    if (error) throw error;
+    setCategories(prev => [...prev, data]);
+    addNotification(`Categoria "${data.name}" criada.`);
+  };
   
-  const updateCategory = useCallback((updatedCategory: Category) => {
-    setCategories(prev => prev.map(c => c.id === updatedCategory.id ? updatedCategory : c));
-    addNotification(`Categoria "${updatedCategory.name}" atualizada.`);
-  }, [setCategories, addNotification]);
+  const updateCategory = async (updatedCategory: Category) => {
+    if (!user) return;
+    const { id, created_at, user_id, ...updateData } = updatedCategory;
+    const { data, error } = await supabase.from('categories').update(updateData).eq('id', id).eq('user_id', user.id).select().single();
+    if (error) throw error;
+    setCategories(prev => prev.map(c => c.id === id ? data : c));
+    addNotification(`Categoria "${data.name}" atualizada.`);
+  };
 
-  const deleteCategory = useCallback((id: string) => {
+  const deleteCategory = async (id: string) => {
+    if (!user) return;
     const catToDelete = categories.find(c => c.id === id);
     if(catToDelete) {
+        const { error } = await supabase.from('categories').delete().eq('id', id).eq('user_id', user.id);
+        if (error) throw error;
         setCategories(prev => prev.filter(c => c.id !== id));
         addNotification(`Categoria "${catToDelete.name}" excluída.`);
     }
-  }, [categories, setCategories, addNotification]);
-
-  const updateSettings = useCallback((newSettings: Settings) => {
-    setSettings(newSettings);
-    addNotification('Configurações salvas.');
-  }, [setSettings, addNotification]);
+  };
 
   return (
     <AppContext.Provider value={{
-      transactions, monthlyTransactions, cards, goals, categories, settings, selectedDate, notifications, setSelectedDate,
+      transactions, monthlyTransactions, cards, goals, categories, profile, selectedDate, notifications, setSelectedDate,
       addTransaction, addMultipleTransactions, updateTransaction, deleteTransaction,
       addCard, updateCard, deleteCard,
       addGoal, updateGoal, deleteGoal,
       addCategory, updateCategory, deleteCategory,
-      updateSettings, markNotificationAsRead
+      markNotificationAsRead
     }}>
       {children}
     </AppContext.Provider>

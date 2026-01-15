@@ -1,7 +1,6 @@
-
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { Category, TransactionType } from '../types';
+import { Category, Transaction, TransactionType } from '../types';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Icon from '../components/ui/Icon';
@@ -9,17 +8,48 @@ import Modal from '../components/ui/Modal';
 import Input from '../components/ui/Input';
 import Select from '../components/ui/Select';
 
+const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+
 const CategoryItem: React.FC<{ category: Category; onEdit: (category: Category) => void; onDelete: (id: string) => void }> = ({ category, onEdit, onDelete }) => {
+    const { monthlyTransactions } = useAppContext();
+    const [isHistoryVisible, setIsHistoryVisible] = useState(false);
+
+    const categoryTransactions = useMemo(() => {
+        return monthlyTransactions
+            .filter(t => t.category === category.name)
+            .slice(0, 5);
+    }, [monthlyTransactions, category.name]);
+
     return (
-        <div className="flex items-center justify-between bg-gray-100 dark:bg-dark-tertiary p-3 rounded-lg">
-            <div className="flex items-center">
-                <div className={`w-2 h-6 rounded-full mr-3 ${category.type === TransactionType.INCOME ? 'bg-finance-green' : 'bg-energetic-orange'}`}></div>
-                <span className="font-medium text-gray-900 dark:text-white">{category.name}</span>
+        <div className="bg-gray-100 dark:bg-dark-tertiary p-3 rounded-lg">
+            <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                    <div className={`w-2 h-6 rounded-full mr-3 ${category.type === TransactionType.INCOME ? 'bg-finance-green' : 'bg-energetic-orange'}`}></div>
+                    <span className="font-medium text-gray-900 dark:text-white">{category.name}</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                    {categoryTransactions.length > 0 && (
+                         <button onClick={() => setIsHistoryVisible(!isHistoryVisible)} className="p-2 rounded-full text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700">
+                            <Icon name={isHistoryVisible ? 'chevron-up' : 'chevron-down'} className="w-4 h-4" />
+                        </button>
+                    )}
+                    <Button size="sm" variant="secondary" onClick={() => onEdit(category)}><Icon name="pencil" className="w-4 h-4"/></Button>
+                    <Button size="sm" variant="danger" onClick={() => onDelete(category.id)}><Icon name="trash" className="w-4 h-4"/></Button>
+                </div>
             </div>
-            <div className="flex space-x-2">
-                <Button size="sm" variant="secondary" onClick={() => onEdit(category)}><Icon name="pencil" className="w-4 h-4"/></Button>
-                <Button size="sm" variant="danger" onClick={() => onDelete(category.id)}><Icon name="trash" className="w-4 h-4"/></Button>
-            </div>
+            {isHistoryVisible && categoryTransactions.length > 0 && (
+                <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-600 space-y-2">
+                    <h4 className="text-sm font-semibold text-gray-600 dark:text-gray-400">Últimos Lançamentos:</h4>
+                    {categoryTransactions.map(t => (
+                         <div key={t.id} className="flex justify-between items-center text-sm">
+                            <span className="text-gray-800 dark:text-gray-300 truncate pr-4">{t.description}</span>
+                            <span className={`font-semibold ${t.type === 'income' ? 'text-finance-green' : 'text-energetic-orange'}`}>
+                                {formatCurrency(t.amount)}
+                            </span>
+                        </div>
+                    ))}
+                </div>
+            )}
         </div>
     );
 };

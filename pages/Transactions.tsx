@@ -1,21 +1,56 @@
-
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { Transaction, TransactionStatus } from '../types';
+import { Transaction, TransactionStatus, AppMode } from '../types';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Icon from '../components/ui/Icon';
 import Modal from '../components/ui/Modal';
 import TransactionForm from '../components/forms/TransactionForm';
+import Input from '../components/ui/Input';
+import Select from '../components/ui/Select';
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 const formatDate = (dateString: string) => new Date(dateString).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
 
 const Transactions: React.FC = () => {
-    const { monthlyTransactions, transactions, addTransaction, addMultipleTransactions, updateTransaction, deleteTransaction } = useAppContext();
-    const [filter, setFilter] = useState<'all' | 'income' | 'expense'>('all');
+    const { monthlyTransactions, addTransaction, addMultipleTransactions, updateTransaction, deleteTransaction, categories, cards, profile } = useAppContext();
+    
+    const [filters, setFilters] = useState({
+        type: 'all',
+        payer: 'all',
+        category: 'all',
+        card: 'all',
+        minAmount: '',
+        maxAmount: ''
+    });
+
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+
+    const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+        setFilters(prev => ({...prev, [e.target.name]: e.target.value}));
+    }
+
+    const payers = useMemo(() => {
+        if (!profile) return [];
+        return profile.mode === AppMode.COUPLE ? [profile.user_name, profile.partner_name].filter(Boolean) as string[] : [profile.user_name];
+    }, [profile]);
+    
+    const filteredTransactions = useMemo(() => {
+        return monthlyTransactions.filter(t => {
+            const { type, payer, category, card, minAmount, maxAmount } = filters;
+            if (type !== 'all' && t.type !== type) return false;
+            if (payer !== 'all' && t.payer !== payer) return false;
+            if (category !== 'all' && t.category !== category) return false;
+            if (card !== 'all' && t.cardId !== card) return false;
+            const min = parseFloat(minAmount.replace(',', '.'));
+            const max = parseFloat(maxAmount.replace(',', '.'));
+            if (!isNaN(min) && t.amount < min) return false;
+            if (!isNaN(max) && t.amount > max) return false;
+            return true;
+        });
+    }, [monthlyTransactions, filters]);
+
 
     const handleOpenModal = (transaction: Transaction | null = null) => {
         setEditingTransaction(transaction);
@@ -74,12 +109,7 @@ const Transactions: React.FC = () => {
             }
         }
     };
-
-    const filteredTransactions = monthlyTransactions.filter(t => {
-        if (filter === 'all') return true;
-        return t.type === filter;
-    });
-
+    
     return (
         <div className="space-y-8 pb-16 md:pb-0">
             <div className="flex flex-wrap items-center justify-between gap-4">
@@ -91,12 +121,26 @@ const Transactions: React.FC = () => {
             </div>
 
             <Card>
-                <div className="flex items-center justify-between mb-4">
-                    <div className="flex space-x-2 p-1 bg-gray-100 dark:bg-dark-tertiary rounded-lg">
-                        <button onClick={() => setFilter('all')} className={`px-3 py-1 text-sm font-semibold rounded-md transition-colors ${filter === 'all' ? 'bg-tech-blue text-white' : 'text-gray-600 dark:text-gray-400'}`}>Todos</button>
-                        <button onClick={() => setFilter('income')} className={`px-3 py-1 text-sm font-semibold rounded-md transition-colors ${filter === 'income' ? 'bg-finance-green text-white' : 'text-gray-600 dark:text-gray-400'}`}>Entradas</button>
-                        <button onClick={() => setFilter('expense')} className={`px-3 py-1 text-sm font-semibold rounded-md transition-colors ${filter === 'expense' ? 'bg-energetic-orange text-white' : 'text-gray-600 dark:text-gray-400'}`}>Saídas</button>
-                    </div>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-4">
+                    <Select label="Tipo" name="type" value={filters.type} onChange={handleFilterChange}>
+                        <option value="all">Todos</option>
+                        <option value="income">Receita</option>
+                        <option value="expense">Despesa</option>
+                    </Select>
+                    <Select label="Responsável" name="payer" value={filters.payer} onChange={handleFilterChange}>
+                        <option value="all">Todos</option>
+                        {payers.map(p => <option key={p} value={p}>{p}</option>)}
+                    </Select>
+                    <Select label="Categoria" name="category" value={filters.category} onChange={handleFilterChange}>
+                        <option value="all">Todas</option>
+                        {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                    </Select>
+                    <Select label="Cartão" name="card" value={filters.card} onChange={handleFilterChange}>
+                        <option value="all">Todos</option>
+                        {cards.map(c => <option key={c.id} value={c.id}>{c.bankName}</option>)}
+                    </Select>
+                    <Input label="Valor Mín." name="minAmount" type="number" placeholder="0,00" value={filters.minAmount} onChange={handleFilterChange} />
+                    <Input label="Valor Máx." name="maxAmount" type="number" placeholder="1.000,00" value={filters.maxAmount} onChange={handleFilterChange} />
                 </div>
 
                 <div className="overflow-x-auto">
@@ -106,6 +150,7 @@ const Transactions: React.FC = () => {
                                 <th className="p-3">Descrição</th>
                                 <th className="p-3">Valor</th>
                                 <th className="p-3 hidden md:table-cell">Categoria</th>
+                                <th className="p-3 hidden lg:table-cell">Responsável</th>
                                 <th className="p-3 hidden lg:table-cell">Data</th>
                                 <th className="p-3 hidden md:table-cell">Status</th>
                                 <th className="p-3">Ações</th>
@@ -125,6 +170,7 @@ const Transactions: React.FC = () => {
                                     </td>
                                     <td className={`p-3 font-semibold ${t.type === 'income' ? 'text-finance-green' : 'text-energetic-orange'}`}>{formatCurrency(t.amount)}</td>
                                     <td className="p-3 text-gray-700 dark:text-gray-300 hidden md:table-cell">{t.category}</td>
+                                    <td className="p-3 text-gray-700 dark:text-gray-300 hidden lg:table-cell">{t.payer}</td>
                                     <td className="p-3 text-gray-700 dark:text-gray-300 hidden lg:table-cell">{formatDate(t.date)}</td>
                                     <td className="p-3 hidden md:table-cell">
                                         <span className={`px-2 py-1 text-xs font-semibold rounded-full ${t.status === TransactionStatus.COMPLETED ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'}`}>{t.status}</span>
@@ -138,8 +184,8 @@ const Transactions: React.FC = () => {
                                 </tr>
                             )) : (
                                 <tr>
-                                    <td colSpan={6} className="text-center py-10 text-gray-500 dark:text-gray-400">
-                                        Nenhum lançamento encontrado para este mês.
+                                    <td colSpan={7} className="text-center py-10 text-gray-500 dark:text-gray-400">
+                                        Nenhum lançamento encontrado para este mês com os filtros aplicados.
                                     </td>
                                 </tr>
                             )}

@@ -1,53 +1,62 @@
 
 import React, { useState, useEffect } from 'react';
-import { useAppContext } from '../context/AppContext';
-import { Settings as SettingsType, AppMode } from '../types';
+import { useAuth } from '../context/AuthContext';
+import { Profile, AppMode } from '../types';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 
 const Settings: React.FC = () => {
-    const { settings, updateSettings } = useAppContext();
-    const [formState, setFormState] = useState<SettingsType>(settings);
+    const { profile, updateProfile, loading } = useAuth();
+    const [formState, setFormState] = useState<Profile | null>(profile);
 
     useEffect(() => {
-        setFormState(settings);
-    }, [settings]);
+        setFormState(profile);
+    }, [profile]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (!formState) return;
         const { name, value } = e.target;
-        setFormState(prev => ({ ...prev, [name]: value }));
+        setFormState(prev => prev ? ({ ...prev, [name]: value }) : null);
     };
     
     const handleModeChange = (mode: AppMode) => {
-        setFormState(prev => ({ 
+        if (!formState) return;
+        setFormState(prev => prev ? ({ 
             ...prev, 
             mode,
-            partnerName: mode === AppMode.INDIVIDUAL ? '' : prev.partnerName
-        }));
+            partner_name: mode === AppMode.INDIVIDUAL ? '' : prev.partner_name
+        }) : null);
     };
 
     const handleThemeChange = (theme: 'dark' | 'light') => {
-        setFormState(prev => ({ ...prev, theme }));
+        if (!formState) return;
+        setFormState(prev => prev ? ({ ...prev, theme }) : null);
     };
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        updateSettings(formState);
+        if (formState) {
+            updateProfile(formState);
+        }
     };
+    
+    if (!formState) {
+        return <div>Carregando perfil...</div>
+    }
 
     return (
         <div className="space-y-8 max-w-2xl mx-auto pb-16 md:pb-0">
-            <h1 className="text-3xl font-bold font-display text-gray-900 dark:text-white">Configurações</h1>
+            <h1 className="text-3xl font-bold font-display text-gray-900 dark:text-white">Configurações de Perfil</h1>
 
             <Card>
                 <form onSubmit={handleSubmit} className="space-y-6">
                     <div>
-                        <label htmlFor="userName" className="block text-sm font-medium text-gray-600 dark:text-gray-400">Seu Nome</label>
+                        <label htmlFor="user_name" className="block text-sm font-medium text-gray-600 dark:text-gray-400">Seu Nome</label>
                         <input
                             type="text"
-                            id="userName"
-                            name="userName"
-                            value={formState.userName}
+                            id="user_name"
+                            name="user_name"
+                            value={formState.user_name}
                             onChange={handleChange}
                             className="w-full mt-1 bg-gray-100 dark:bg-dark-tertiary border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-gray-900 dark:text-white focus:ring-2 focus:ring-tech-blue focus:outline-none"
                         />
@@ -75,12 +84,12 @@ const Settings: React.FC = () => {
 
                     {formState.mode === AppMode.COUPLE && (
                         <div className="transition-all duration-300">
-                            <label htmlFor="partnerName" className="block text-sm font-medium text-gray-600 dark:text-gray-400">Nome do Cônjuge</label>
+                            <label htmlFor="partner_name" className="block text-sm font-medium text-gray-600 dark:text-gray-400">Nome do Cônjuge</label>
                             <input
                                 type="text"
-                                id="partnerName"
-                                name="partnerName"
-                                value={formState.partnerName || ''}
+                                id="partner_name"
+                                name="partner_name"
+                                value={formState.partner_name || ''}
                                 onChange={handleChange}
                                 className="w-full mt-1 bg-gray-100 dark:bg-dark-tertiary border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-gray-900 dark:text-white focus:ring-2 focus:ring-tech-blue focus:outline-none"
                             />
@@ -108,8 +117,8 @@ const Settings: React.FC = () => {
                     </div>
 
                     <div className="pt-4 border-t border-gray-200 dark:border-gray-700/50">
-                        <Button type="submit" size="lg" className="w-full">
-                            Salvar Alterações
+                        <Button type="submit" size="lg" className="w-full" disabled={loading}>
+                            {loading ? 'Salvando...' : 'Salvar Alterações'}
                         </Button>
                     </div>
                 </form>

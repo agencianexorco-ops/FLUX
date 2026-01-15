@@ -30,8 +30,14 @@ export enum PaymentMethod {
   OTHER = 'outro',
 }
 
-export interface Transaction {
+// Base type for Supabase tables
+interface DbRecord {
   id: string;
+  created_at: string;
+  user_id: string;
+}
+
+export interface Transaction extends DbRecord {
   type: TransactionType;
   amount: number;
   date: string;
@@ -50,8 +56,7 @@ export interface Transaction {
   cardId?: string;
 }
 
-export interface CreditCard {
-  id: string;
+export interface CreditCard extends DbRecord {
   bankName: string;
   limit: number;
   closingDay: number;
@@ -59,8 +64,7 @@ export interface CreditCard {
   holderName: string;
 }
 
-export interface Goal {
-  id: string;
+export interface Goal extends DbRecord {
   name: string;
   targetAmount: number;
   initialAmount: number;
@@ -69,18 +73,21 @@ export interface Goal {
   endDate: string;
 }
 
-export interface Category {
-  id: string;
+export interface Category extends DbRecord {
   name: string;
   type: TransactionType;
 }
 
-export interface Settings {
-  userName: string;
-  partnerName?: string;
+export interface Profile {
+  id: string; // Corresponds to Supabase auth.users.id
+  user_name: string;
+  partner_name?: string;
   mode: AppMode;
   theme: 'dark' | 'light';
+  has_access: boolean;
+  plan: 'free' | 'pro' | 'premium';
 }
+
 
 export interface Notification {
   id:string;

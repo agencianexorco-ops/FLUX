@@ -1,12 +1,15 @@
 
 import React, { useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
+import { useAuth } from '../../context/AuthContext';
 import Icon from '../ui/Icon';
 import MonthNavigator from '../ui/MonthNavigator';
 
 const Header: React.FC = () => {
-    const { settings, notifications, selectedDate, setSelectedDate, markNotificationAsRead } = useAppContext();
+    const { notifications, selectedDate, setSelectedDate, markNotificationAsRead } = useAppContext();
+    const { profile, signOut } = useAuth();
     const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+    const [isProfileOpen, setIsProfileOpen] = useState(false);
     
     const unreadCount = notifications.filter(n => !n.read).length;
 
@@ -25,6 +28,8 @@ const Header: React.FC = () => {
             default: return 'check';
         }
     };
+    
+    if (!profile) return null;
 
     return (
         <header className="flex-shrink-0 bg-white/80 backdrop-blur-md border-b border-gray-200/80 dark:bg-dark-secondary/50 dark:border-gray-700/50">
@@ -84,15 +89,30 @@ const Header: React.FC = () => {
                         )}
                     </div>
 
-
-                    <div className="flex items-center space-x-3">
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-tech-blue to-finance-green flex items-center justify-center font-bold text-white">
-                            {settings.userName.charAt(0).toUpperCase()}
-                        </div>
-                        <div className='hidden sm:block'>
-                            <p className="font-semibold text-gray-900 dark:text-white">{settings.userName}</p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">{settings.mode === 'couple' ? 'Modo Casal' : 'Modo Individual'}</p>
-                        </div>
+                    <div className="relative">
+                        <button onClick={() => setIsProfileOpen(p => !p)} className="flex items-center space-x-3">
+                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-tech-blue to-finance-green flex items-center justify-center font-bold text-white">
+                                {profile.user_name.charAt(0).toUpperCase()}
+                            </div>
+                            <div className='hidden sm:block'>
+                                <p className="font-semibold text-gray-900 dark:text-white">{profile.user_name}</p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400">{profile.mode === 'couple' ? 'Modo Casal' : 'Modo Individual'}</p>
+                            </div>
+                        </button>
+                         {isProfileOpen && (
+                             <div 
+                                className="absolute right-0 mt-2 w-48 bg-white dark:bg-dark-secondary rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 z-20"
+                            >
+                                <div className="p-2">
+                                    <button
+                                        onClick={signOut}
+                                        className="w-full text-left px-3 py-2 text-sm text-gray-800 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-tertiary rounded-md"
+                                    >
+                                        Sair
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>

@@ -1,31 +1,34 @@
 
 import React, { useState, useEffect } from 'react';
 import { CreditCard } from '../../types';
-import { useAppContext } from '../../context/AppContext';
+import { useAuth } from '../../context/AuthContext';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
 
 interface CardFormProps {
-  onSave: (card: Omit<CreditCard, 'id'> | CreditCard) => void;
+  onSave: (card: Omit<CreditCard, 'id' | 'user_id' | 'created_at'> | CreditCard) => void;
   onClose: () => void;
   initialData: CreditCard | null;
 }
 
 const CardForm: React.FC<CardFormProps> = ({ onSave, onClose, initialData }) => {
-    const { settings } = useAppContext();
+    const { profile } = useAuth();
     const [formData, setFormData] = useState({
         bankName: '',
         limit: 0,
         closingDay: 1,
         dueDay: 10,
-        holderName: settings.userName,
+        holderName: profile?.user_name || '',
     });
 
     useEffect(() => {
         if (initialData) {
-            setFormData(initialData);
+            const { id, user_id, created_at, ...rest } = initialData;
+            setFormData(rest);
+        } else {
+            setFormData(prev => ({ ...prev, holderName: profile?.user_name || '' }));
         }
-    }, [initialData]);
+    }, [initialData, profile]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value, type } = e.target;
@@ -37,7 +40,7 @@ const CardForm: React.FC<CardFormProps> = ({ onSave, onClose, initialData }) => 
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        onSave(initialData ? { ...formData, id: initialData.id } : formData);
+        onSave(initialData ? { ...formData, id: initialData.id, user_id: initialData.user_id, created_at: initialData.created_at } : formData);
     };
 
     return (

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Transaction, TransactionType, TransactionStatus, Recurrence, PaymentMethod, AppMode } from '../../types';
 import { useAppContext } from '../../context/AppContext';
@@ -7,13 +6,13 @@ import Input from '../ui/Input';
 import Select from '../ui/Select';
 
 interface TransactionFormProps {
-  onSave: (transaction: Omit<Transaction, 'id'>, installmentDetails: {date: string, amount: number}[]) => void;
+  onSave: (transaction: Omit<Transaction, 'id' | 'user_id' | 'created_at'>, installmentDetails: {date: string, amount: number}[]) => void;
   onClose: () => void;
   initialData: Transaction | null;
 }
 
 const TransactionForm: React.FC<TransactionFormProps> = ({ onSave, onClose, initialData }) => {
-  const { categories, settings, cards, selectedDate } = useAppContext();
+  const { categories, profile, cards, selectedDate } = useAppContext();
   
   const getInitialDate = () => {
     if (initialData) return initialData.date;
@@ -27,12 +26,12 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ onSave, onClose, init
     return d.toISOString().split('T')[0];
   };
 
-  const [formData, setFormData] = useState<Omit<Transaction, 'id'>>({
+  const [formData, setFormData] = useState<Omit<Transaction, 'id' | 'user_id' | 'created_at'>>({
     type: TransactionType.EXPENSE,
     amount: 0,
     date: getInitialDate(),
     description: '',
-    payer: settings.userName,
+    payer: profile?.user_name || '',
     category: '',
     status: TransactionStatus.COMPLETED,
     recurrence: Recurrence.NONE,
@@ -46,15 +45,16 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ onSave, onClose, init
 
   useEffect(() => {
     if (initialData) {
-      setFormData({ ...initialData });
+      const { user_id, created_at, id, ...rest } = initialData;
+      setFormData({ ...rest });
       if (initialData.installments) {
         setInstallments(initialData.installments.total);
       }
     } else {
-        setFormData(prev => ({ ...prev, date: getInitialDate() }));
+        setFormData(prev => ({ ...prev, date: getInitialDate(), payer: profile?.user_name || '' }));
         setInstallments(1);
     }
-  }, [initialData, selectedDate]);
+  }, [initialData, selectedDate, profile]);
 
   useEffect(() => {
     if (installments > 1 && formData.amount > 0 && !initialData) {
@@ -109,7 +109,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ onSave, onClose, init
   };
 
   const availableCategories = categories.filter(c => c.type === formData.type);
-  const payers = settings.mode === AppMode.COUPLE ? [settings.userName, settings.partnerName ?? ''] : [settings.userName];
+  const payers = profile?.mode === AppMode.COUPLE && profile.partner_name ? [profile.user_name, profile.partner_name] : [profile?.user_name || ''];
   const isInstallmentEdit = !!(initialData && initialData.installments);
 
   return (
@@ -133,10 +133,15 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ onSave, onClose, init
         />
         <Input label="Data" id="date" name="date" type="date" value={formData.date} onChange={handleChange} required />
       </div>
-       <Select label="Categoria" id="category" name="category" value={formData.category} onChange={handleChange} required>
-        <option value="">Selecione...</option>
-        {availableCategories.map(cat => <option key={cat.id} value={cat.name}>{cat.name}</option>)}
-      </Select>
+       <div className="grid grid-cols-2 gap-4">
+        <Select label="Categoria" id="category" name="category" value={formData.category} onChange={handleChange} required>
+          <option value="">Selecione...</option>
+          {availableCategories.map(cat => <option key={cat.id} value={cat.name}>{cat.name}</option>)}
+        </Select>
+        <Select label="Responsável" id="payer" name="payer" value={formData.payer} onChange={handleChange} required>
+            {payers.filter(p => p).map(p => <option key={p} value={p}>{p}</option>)}
+        </Select>
+       </div>
       <div className="grid grid-cols-2 gap-4">
         <Select label="Status" id="status" name="status" value={formData.status} onChange={handleChange}>
           {Object.values(TransactionStatus).map(s => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
@@ -149,11 +154,6 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ onSave, onClose, init
         <Select label="Cartão de Crédito" id="cardId" name="cardId" value={formData.cardId || ''} onChange={handleChange}>
             <option value="">Selecione o cartão...</option>
             {cards.map(card => <option key={card.id} value={card.id}>{card.bankName} - {card.holderName}</option>)}
-        </Select>
-      )}
-      {payers.length > 1 && (
-        <Select label="Responsável" id="payer" name="payer" value={formData.payer} onChange={handleChange}>
-            {payers.filter(p => p).map(p => <option key={p} value={p}>{p}</option>)}
         </Select>
       )}
       {!isInstallmentEdit && (

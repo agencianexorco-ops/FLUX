@@ -1,4 +1,3 @@
-
 import React from 'react';
 import {
   HomeIcon,
@@ -17,6 +16,12 @@ import {
   ArrowDownIcon,
   XMarkIcon,
   CheckIcon,
+  ArrowTrendingUpIcon,
+  ArrowTrendingDownIcon,
+  LightBulbIcon,
+  UserGroupIcon,
+  EyeIcon,
+  EyeSlashIcon,
 } from '@heroicons/react/24/outline';
 
 interface IconProps {
@@ -41,6 +46,12 @@ const iconMap: { [key: string]: React.ElementType } = {
   'arrow-down': ArrowDownIcon,
   x: XMarkIcon,
   check: CheckIcon,
+  'arrow-trending-up': ArrowTrendingUpIcon,
+  'arrow-trending-down': ArrowTrendingDownIcon,
+  'light-bulb': LightBulbIcon,
+  'user-group': UserGroupIcon,
+  eye: EyeIcon,
+  'eye-slash': EyeSlashIcon,
 };
 
 const Icon: React.FC<IconProps> = ({ name, className = 'w-6 h-6' }) => {
