@@ -22,6 +22,7 @@ import {
   UserGroupIcon,
   EyeIcon,
   EyeSlashIcon,
+  ArrowDownTrayIcon,
 } from '@heroicons/react/24/outline';
 
 interface IconProps {
@@ -52,6 +53,7 @@ const iconMap: { [key: string]: React.ElementType } = {
   'user-group': UserGroupIcon,
   eye: EyeIcon,
   'eye-slash': EyeSlashIcon,
+  'arrow-down-tray': ArrowDownTrayIcon,
 };
 
 const Icon: React.FC<IconProps> = ({ name, className = 'w-6 h-6' }) => {
