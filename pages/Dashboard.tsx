@@ -1,8 +1,9 @@
+
 import React, { useState } from 'react';
 import { useAppContext } from '../context/AppContext';
 import Card from '../components/ui/Card';
 import Icon from '../components/ui/Icon';
-import { Transaction, TransactionStatus } from '../types';
+import { Transaction, TransactionStatus, TransactionType } from '../types';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell } from 'recharts';
 
 const formatCurrency = (value: number) => {
@@ -122,13 +123,14 @@ const Dashboard: React.FC = () => {
 
   // --- INSIGHTS ---
   const insights = [];
-  // 1. Spending change vs last month
   const prevMonthDate = new Date(selectedYear, selectedMonth - 1, 15);
   const prevMonthTransactions = transactions.filter(t => {
       const date = new Date(t.date);
       return date.getFullYear() === prevMonthDate.getFullYear() && date.getMonth() === prevMonthDate.getMonth() && t.status === TransactionStatus.COMPLETED;
   });
   const prevMonthTotalExpense = prevMonthTransactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + Number(t.amount), 0);
+
+  // 1. Spending change vs last month
   if (prevMonthTotalExpense > 0 && totalExpense > 0) {
     const percentChange = ((totalExpense - prevMonthTotalExpense) / prevMonthTotalExpense) * 100;
     if (Math.abs(percentChange) > 5) {
@@ -173,6 +175,71 @@ const Dashboard: React.FC = () => {
         text: <><strong>Atenção:</strong> Suas despesas superaram suas receitas este mês em <strong>{formatDisplayCurrency(totalExpense - totalIncome)}</strong>.</>
     });
   }
+  // 5. NEW: Revenue comparison vs. 3-month average
+  const last3MonthsRevenue = [1, 2, 3].map(i => {
+      const prevMonth = new Date(selectedYear, selectedMonth - i, 15);
+      const monthTransactions = transactions.filter(t => {
+          const tDate = new Date(t.date);
+          return tDate.getFullYear() === prevMonth.getFullYear() && tDate.getMonth() === prevMonth.getMonth() && t.status === TransactionStatus.COMPLETED && t.type === TransactionType.INCOME;
+      });
+      return monthTransactions.reduce((acc, t) => acc + Number(t.amount), 0);
+  }).filter(revenue => revenue > 0);
+
+  if (last3MonthsRevenue.length > 0) {
+      const avg3MonthRevenue = last3MonthsRevenue.reduce((a, b) => a + b, 0) / last3MonthsRevenue.length;
+      if (totalIncome > 0 && avg3MonthRevenue > 0) {
+          const revenueChange = ((totalIncome - avg3MonthRevenue) / avg3MonthRevenue) * 100;
+          if (Math.abs(revenueChange) > 5) {
+              insights.push({
+                  id: 'revenue_change_avg',
+                  icon: revenueChange > 0 ? 'arrow-trending-up' : 'arrow-trending-down',
+                  color: revenueChange > 0 ? 'text-finance-green' : 'text-energetic-orange',
+                  text: <>Sua receita está <strong>{Math.abs(revenueChange).toFixed(0)}%</strong> {revenueChange > 0 ? 'acima' : 'abaixo'} da sua média mensal.</>
+              });
+          }
+      }
+  }
+  // 6. NEW: Category spending increase alert
+  const prevMonthCategorySpending = prevMonthTransactions
+      .filter(t => t.type === TransactionType.EXPENSE)
+      .reduce((acc, t) => {
+          acc[t.category] = (acc[t.category] || 0) + Number(t.amount);
+          return acc;
+      }, {} as Record<string, number>);
+
+  categoryData.slice(0, 3).forEach(cat => {
+      const prevSpending = prevMonthCategorySpending[cat.name] || 0;
+      if (prevSpending > 20 && cat.value > prevSpending) { // Only check if previous spending was significant
+          const increasePercent = ((cat.value - prevSpending) / prevSpending) * 100;
+          if (increasePercent > 20) {
+              insights.push({
+                  id: `category_increase_${cat.name}`,
+                  icon: 'arrow-trending-up',
+                  color: 'text-energetic-orange',
+                  text: <>Seus gastos com <strong>"{cat.name}"</strong> aumentaram <strong>{increasePercent.toFixed(0)}%</strong> este mês.</>
+              });
+          }
+      }
+  });
+  // 7. NEW: Negative balance projection
+  const today = new Date();
+  const isCurrentMonth = selectedDate.getFullYear() === today.getFullYear() && selectedDate.getMonth() === today.getMonth();
+
+  if (isCurrentMonth && today.getDate() > 5 && totalExpense > totalIncome) {
+      const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
+      const dailyAverageExpense = totalExpense / today.getDate();
+      const projectedExpense = dailyAverageExpense * daysInMonth;
+      const projectedBalance = totalIncome - projectedExpense;
+
+      if (projectedBalance < 0) {
+          insights.push({
+              id: 'negative_projection',
+              icon: 'light-bulb',
+              color: 'text-energetic-orange',
+              text: <>Mantendo este ritmo, seu saldo final pode ficar negativo em <strong>{formatDisplayCurrency(Math.abs(projectedBalance))}</strong>.</>
+          });
+      }
+  }
 
   return (
     <div className="space-y-8 pb-16 md:pb-0">
@@ -201,7 +268,7 @@ const Dashboard: React.FC = () => {
             <Card>
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Insights Rápidos</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
-                    {insights.slice(0, 4).map(insight => <InsightItem key={insight.id} {...insight} />)}
+                    {insights.map(insight => <InsightItem key={insight.id} {...insight} />)}
                 </div>
             </Card>
         )}
