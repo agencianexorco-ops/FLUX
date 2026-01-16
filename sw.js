@@ -1,7 +1,9 @@
-const CACHE_NAME = 'flux-cache-v1';
+const CACHE_NAME = 'flux-cache-v2';
 const urlsToCache = [
   '/',
-  '/index.html'
+  '/index.html',
+  '/manifest.json',
+  '/vite.svg'
 ];
 
 self.addEventListener('install', event => {
