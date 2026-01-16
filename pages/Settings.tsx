@@ -4,9 +4,12 @@ import { useAuth } from '../context/AuthContext';
 import { Profile, AppMode } from '../types';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
+import { useAppContext } from '../context/AppContext';
+import Icon from '../components/ui/Icon';
 
 const Settings: React.FC = () => {
     const { profile, updateProfile, loading } = useAuth();
+    const { installPrompt, isPwaInstalled, triggerInstallPrompt } = useAppContext();
     const [formState, setFormState] = useState<Profile | null>(profile);
 
     useEffect(() => {
@@ -46,12 +49,13 @@ const Settings: React.FC = () => {
 
     return (
         <div className="space-y-8 max-w-2xl mx-auto pb-16 md:pb-0">
-            <h1 className="text-3xl font-bold font-display text-gray-900 dark:text-white">Configurações de Perfil</h1>
+            <h1 className="text-3xl font-bold font-display text-gray-900 dark:text-white">Configurações</h1>
 
             <Card>
                 <form onSubmit={handleSubmit} className="space-y-6">
                     <div>
-                        <label htmlFor="user_name" className="block text-sm font-medium text-gray-600 dark:text-gray-400">Seu Nome</label>
+                        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Perfil</h2>
+                        <label htmlFor="user_name" className="block text-sm font-medium text-gray-600 dark:text-gray-400 mt-2">Seu Nome</label>
                         <input
                             type="text"
                             id="user_name"
@@ -97,7 +101,8 @@ const Settings: React.FC = () => {
                     )}
                     
                      <div>
-                        <label className="block text-sm font-medium text-gray-600 dark:text-gray-400">Tema Visual</label>
+                        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mt-6">Aparência</h2>
+                        <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mt-2">Tema Visual</label>
                         <div className="mt-2 grid grid-cols-2 gap-3">
                             <button
                                 type="button"
@@ -122,6 +127,29 @@ const Settings: React.FC = () => {
                         </Button>
                     </div>
                 </form>
+
+                <div className="pt-6 mt-6 border-t border-gray-200 dark:border-gray-700/50">
+                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Aplicativo</h2>
+                    <div className="mt-2">
+                        {isPwaInstalled ? (
+                            <p className="text-sm p-3 bg-gray-100 dark:bg-dark-tertiary rounded-lg text-gray-600 dark:text-gray-400">
+                                O aplicativo já está instalado no seu dispositivo.
+                            </p>
+                        ) : installPrompt ? (
+                            <Button
+                                type="button"
+                                onClick={triggerInstallPrompt}
+                                leftIcon={<Icon name="arrow-down-tray" className="w-5 h-5" />}
+                            >
+                                Instalar aplicativo
+                            </Button>
+                        ) : (
+                            <p className="text-sm p-3 bg-gray-100 dark:bg-dark-tertiary rounded-lg text-gray-600 dark:text-gray-400">
+                                A instalação não está disponível no seu navegador ou o app já foi instalado.
+                            </p>
+                        )}
+                    </div>
+                </div>
             </Card>
         </div>
     );

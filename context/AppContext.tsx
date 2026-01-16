@@ -26,6 +26,8 @@ interface AppState {
   profile: Profile | null;
   selectedDate: Date;
   notifications: Notification[];
+  installPrompt: Event | null;
+  isPwaInstalled: boolean;
   setSelectedDate: (date: Date) => void;
   addTransaction: (transaction: Omit<Transaction, 'id' | 'user_id' | 'created_at'>) => Promise<void>;
   addMultipleTransactions: (transactions: Omit<Transaction, 'id' | 'user_id' | 'created_at'>[]) => Promise<void>;
@@ -41,6 +43,7 @@ interface AppState {
   updateCategory: (category: Category) => Promise<void>;
   deleteCategory: (id: string) => Promise<void>;
   markNotificationAsRead: (id: string) => void;
+  triggerInstallPrompt: () => void;
 }
 
 const AppContext = createContext<AppState | undefined>(undefined);
@@ -54,6 +57,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [categories, setCategories] = useState<Category[]>([]);
   const [notifications, setNotifications] = useLocalStorage<Notification[]>('flux_notifications', []);
   const [selectedDate, setSelectedDate] = useState(new Date());
+  const [installPrompt, setInstallPrompt] = useState<Event | null>(null);
+  const [isPwaInstalled, setIsPwaInstalled] = useState(false);
 
   useEffect(() => {
     if (profile?.theme === 'light') {
@@ -62,6 +67,24 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       document.body.classList.add('dark');
     }
   }, [profile?.theme]);
+
+  useEffect(() => {
+    const handleInstallPrompt = (e: Event) => {
+        e.preventDefault();
+        setInstallPrompt(e);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleInstallPrompt);
+
+    // Check if the app is already installed
+    if (window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true) {
+        setIsPwaInstalled(true);
+    }
+
+    return () => {
+        window.removeEventListener('beforeinstallprompt', handleInstallPrompt);
+    };
+}, []);
 
   // Fetch all user data
   useEffect(() => {
@@ -270,14 +293,28 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
+  const triggerInstallPrompt = () => {
+    if (!installPrompt) return;
+    (installPrompt as any).prompt();
+    (installPrompt as any).userChoice.then((choiceResult: { outcome: 'accepted' | 'dismissed' }) => {
+        if (choiceResult.outcome === 'accepted') {
+            setIsPwaInstalled(true);
+        }
+        setInstallPrompt(null);
+    });
+  };
+
   return (
     <AppContext.Provider value={{
-      transactions, monthlyTransactions, cards, goals, categories, profile, selectedDate, notifications, setSelectedDate,
+      transactions, monthlyTransactions, cards, goals, categories, profile, selectedDate, notifications,
+      installPrompt, isPwaInstalled,
+      setSelectedDate,
       addTransaction, addMultipleTransactions, updateTransaction, deleteTransaction,
       addCard, updateCard, deleteCard,
       addGoal, updateGoal, deleteGoal,
       addCategory, updateCategory, deleteCategory,
-      markNotificationAsRead
+      markNotificationAsRead,
+      triggerInstallPrompt
     }}>
       {children}
     </AppContext.Provider>

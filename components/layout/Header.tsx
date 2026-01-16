@@ -10,29 +10,6 @@ const Header: React.FC = () => {
     const { profile, signOut } = useAuth();
     const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
     const [isProfileOpen, setIsProfileOpen] = useState(false);
-    const [installPrompt, setInstallPrompt] = useState<Event | null>(null);
-
-    useEffect(() => {
-        const handler = (e: Event) => {
-          e.preventDefault();
-          setInstallPrompt(e);
-        };
-        window.addEventListener('beforeinstallprompt', handler);
-      
-        return () => {
-          window.removeEventListener('beforeinstallprompt', handler);
-        };
-      }, []);
-    
-    const handleInstallClick = () => {
-        if (!installPrompt) {
-          return;
-        }
-        (installPrompt as any).prompt();
-        (installPrompt as any).userChoice.then(() => {
-            setInstallPrompt(null);
-        });
-    };
     
     const unreadCount = notifications.filter(n => !n.read).length;
 
@@ -127,15 +104,6 @@ const Header: React.FC = () => {
                                 className="absolute right-0 mt-2 w-48 bg-white dark:bg-dark-secondary rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 z-20"
                             >
                                 <div className="p-2">
-                                    {installPrompt && (
-                                        <button
-                                            onClick={handleInstallClick}
-                                            className="w-full text-left flex items-center px-3 py-2 text-sm text-gray-800 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-tertiary rounded-md"
-                                        >
-                                            <Icon name="arrow-down-tray" className="w-5 h-5 mr-2" />
-                                            <span>Instalar App</span>
-                                        </button>
-                                    )}
                                     <button
                                         onClick={signOut}
                                         className="w-full text-left px-3 py-2 text-sm text-gray-800 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-tertiary rounded-md"
