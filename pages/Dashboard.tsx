@@ -74,6 +74,10 @@ const Dashboard: React.FC = () => {
   const totalExpense = realized.filter(t => t.type === 'expense').reduce((acc, t) => acc + Number(t.amount), 0);
   const monthlyResult = totalIncome - totalExpense;
 
+  const plannedForCurrentMonth = monthlyTransactions.filter(t => t.status === TransactionStatus.PLANNED);
+  const plannedIncome = plannedForCurrentMonth.filter(t => t.type === 'income').reduce((acc, t) => acc + Number(t.amount), 0);
+  const plannedExpense = plannedForCurrentMonth.filter(t => t.type === 'expense').reduce((acc, t) => acc + Number(t.amount), 0);
+
   const endOfSelectedMonth = new Date(selectedYear, selectedMonth + 1, 0);
   const closingBalanceOfMonth = transactions
     .filter(t => t.status === TransactionStatus.COMPLETED && new Date(t.date) <= endOfSelectedMonth)
@@ -81,12 +85,13 @@ const Dashboard: React.FC = () => {
 
   const plannedForNextMonth = transactions.filter(t => {
       const date = new Date(t.date);
-      return date.getFullYear() === selectedYear && date.getMonth() === selectedMonth + 1 && t.status === TransactionStatus.PLANNED;
+      const nextMonth = new Date(selectedYear, selectedMonth + 1, 15);
+      return date.getFullYear() === nextMonth.getFullYear() && date.getMonth() === nextMonth.getMonth() && t.status === TransactionStatus.PLANNED;
   });
-  const plannedIncome = plannedForNextMonth.filter(t => t.type === 'income').reduce((acc, t) => acc + Number(t.amount), 0);
-  const plannedExpense = plannedForNextMonth.filter(t => t.type === 'expense').reduce((acc, t) => acc + Number(t.amount), 0);
+  const nextMonthPlannedIncome = plannedForNextMonth.filter(t => t.type === 'income').reduce((acc, t) => acc + Number(t.amount), 0);
+  const nextMonthPlannedExpense = plannedForNextMonth.filter(t => t.type === 'expense').reduce((acc, t) => acc + Number(t.amount), 0);
   
-  const nextMonthOpeningBalance = closingBalanceOfMonth + plannedIncome - plannedExpense;
+  const nextMonthOpeningBalance = closingBalanceOfMonth + nextMonthPlannedIncome - nextMonthPlannedExpense;
   
   const recentTransactionsInMonth = monthlyTransactions.slice(0, 5);
 
@@ -183,11 +188,13 @@ const Dashboard: React.FC = () => {
             </button>
         </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-6">
             <SummaryCard title="Resultado Mensal" value={formatDisplayCurrency(monthlyResult)} icon="switch-horizontal" color="bg-tech-blue" />
             <SummaryCard title="Saldo Final do Mês" value={formatDisplayCurrency(closingBalanceOfMonth)} icon="chart-pie" color="bg-finance-green" />
             <SummaryCard title="Receita do Mês" value={formatDisplayCurrency(totalIncome)} icon="arrow-up" color="bg-finance-green" />
             <SummaryCard title="Despesa do Mês" value={formatDisplayCurrency(totalExpense)} icon="arrow-down" color="bg-energetic-orange" />
+            <SummaryCard title="Receita Prevista" value={formatDisplayCurrency(plannedIncome)} icon="arrow-up" color="bg-finance-green/70" />
+            <SummaryCard title="Despesa Prevista" value={formatDisplayCurrency(plannedExpense)} icon="arrow-down" color="bg-energetic-orange/70" />
         </div>
 
         {insights.length > 0 && (
@@ -249,8 +256,8 @@ const Dashboard: React.FC = () => {
             {/* Sidebar column */}
             <div className="lg:col-span-1 space-y-6">
                 <Card>
-                    <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Previsão</h2>
-                    <p className="text-gray-500 dark:text-gray-400 text-sm mb-4">Saldo estimado para o próximo mês.</p>
+                    <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Previsão Próx. Mês</h2>
+                    <p className="text-gray-500 dark:text-gray-400 text-sm mb-4">Saldo estimado de abertura.</p>
                     <p className="text-3xl font-bold text-tech-blue">{formatDisplayCurrency(nextMonthOpeningBalance)}</p>
                 </Card>
                 <Card>

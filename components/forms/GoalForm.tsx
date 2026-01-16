@@ -5,7 +5,8 @@ import Button from '../ui/Button';
 import Input from '../ui/Input';
 
 interface GoalFormProps {
-  onSave: (goal: Omit<Goal, 'id' | 'currentAmount'> | Goal) => void;
+  // FIX: Updated the type to correctly represent the data for a new goal (omitting all DB-generated fields) and an existing goal.
+  onSave: (goal: Omit<Goal, 'id' | 'currentAmount' | 'user_id' | 'created_at'> | Goal) => void;
   onClose: () => void;
   initialData: Goal | null;
 }
@@ -42,7 +43,8 @@ const GoalForm: React.FC<GoalFormProps> = ({ onSave, onClose, initialData }) => 
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSave(initialData ? { ...formData, id: initialData.id, currentAmount: initialData.currentAmount } : formData);
+    // FIX: Correctly construct the payload for onSave. When editing, spread initialData to preserve fields like id, created_at, etc., and then overwrite with form data. For new goals, formData already has the correct shape.
+    onSave(initialData ? { ...initialData, ...formData } : formData);
   };
 
   return (

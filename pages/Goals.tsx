@@ -60,7 +60,8 @@ const Goals: React.FC = () => {
         setEditingGoal(null);
     };
 
-    const handleSaveGoal = (goalData: Omit<Goal, 'id' | 'currentAmount'> | Goal) => {
+    // FIX: The type for a new goal was incorrect. It should not include database-generated fields like `id`, `user_id`, `created_at`, or the calculated `currentAmount`. This aligns it with the `addGoal` function's expectation.
+    const handleSaveGoal = (goalData: Omit<Goal, 'id' | 'currentAmount' | 'user_id' | 'created_at'> | Goal) => {
         if ('id' in goalData) {
             updateGoal(goalData);
         } else {

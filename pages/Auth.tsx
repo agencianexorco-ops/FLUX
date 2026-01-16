@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { supabase } from '../supabase/client';
 import Button from '../components/ui/Button';
@@ -39,16 +40,24 @@ const Auth: React.FC = () => {
         setSignupSuccess(true);
       }
     } catch (err: any) {
-      console.error('Falha na autenticação:', err);
-      // More specific error messages for common issues
-      if (err.message.includes('Invalid login credentials')) {
-        setError('Email ou senha inválidos.');
-      } else if (err.message.includes('Email not confirmed')) {
-        setError('Por favor, confirme seu e-mail antes de fazer login.');
-      }
-      else {
-        setError(err.message || 'Ocorreu um erro desconhecido.');
-      }
+        console.error('Falha na autenticação:', err);
+        
+        let errorMessage = 'Ocorreu um erro desconhecido.';
+        // Garante que estamos extraindo uma string da mensagem de erro.
+        if (err && typeof err.message === 'string') {
+            errorMessage = err.message;
+        } else if (typeof err === 'string') {
+            errorMessage = err;
+        }
+      
+        // Exibe mensagens mais amigáveis para erros comuns.
+        if (errorMessage.includes('Invalid login credentials')) {
+          setError('Email ou senha inválidos.');
+        } else if (errorMessage.includes('Email not confirmed')) {
+          setError('Por favor, confirme seu e-mail antes de fazer login.');
+        } else {
+          setError(errorMessage);
+        }
     } finally {
       setLoading(false);
     }

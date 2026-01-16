@@ -45,7 +45,8 @@ interface AppState {
 
 const AppContext = createContext<AppState | undefined>(undefined);
 
-export const AppProvider = ({ children }: { children: ReactNode }) => {
+// FIX: Explicitly typed AppProvider as a React.FC to resolve a type inference issue.
+export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { user, profile, loading } = useAuth();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [cards, setCards] = useState<CreditCard[]>([]);
@@ -160,15 +161,28 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
     const parentId = transactionToDelete.installments?.parentId;
     if (parentId) {
-        const { error } = await supabase.from('transactions').delete().eq('installments->>parentId', parentId).eq('user_id', user.id);
-        if(error) throw error;
+      // It's an installment transaction, delete all related
+      const transactionsToDelete = transactions.filter(t => t.installments?.parentId === parentId);
+      const idsToDelete = transactionsToDelete.map(t => t.id);
+      
+      if (idsToDelete.length > 0) {
+        const { error } = await supabase.from('transactions').delete().in('id', idsToDelete);
+        if (error) {
+          addNotification(`Erro ao excluir parcelamento: ${error.message}`, 'overdue');
+          throw error;
+        }
         setTransactions(prev => prev.filter(t => t.installments?.parentId !== parentId));
-        addNotification(`Parcelamento "${transactionToDelete.description.split(' (')[0]}" e todas as suas parcelas foram excluídos.`);
+        addNotification(`Parcelamento "${transactionToDelete.description.split(' (')[0]}" excluído.`);
+      }
     } else {
-        const { error } = await supabase.from('transactions').delete().eq('id', id).eq('user_id', user.id);
-        if (error) throw error;
-        setTransactions(prev => prev.filter(t => t.id !== id));
-        addNotification(`Lançamento "${transactionToDelete.description}" excluído.`);
+      // It's a single transaction
+      const { error } = await supabase.from('transactions').delete().eq('id', id);
+      if (error) {
+        addNotification(`Erro ao excluir lançamento: ${error.message}`, 'overdue');
+        throw error;
+      }
+      setTransactions(prev => prev.filter(t => t.id !== id));
+      addNotification(`Lançamento "${transactionToDelete.description}" excluído.`);
     }
   };
 

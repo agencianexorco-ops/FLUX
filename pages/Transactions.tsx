@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { Transaction, TransactionStatus, AppMode } from '../types';
@@ -98,15 +99,12 @@ const Transactions: React.FC = () => {
         }
     };
 
-    const handleDeleteTransaction = (transaction: Transaction) => {
-        if (transaction.installments?.parentId) {
-            if (window.confirm("Este é um lançamento parcelado. Deseja excluir todas as parcelas relacionadas?")) {
-                deleteTransaction(transaction.id);
-            }
-        } else {
-            if (window.confirm("Tem certeza que deseja excluir este lançamento?")) {
-                deleteTransaction(transaction.id);
-            }
+    const handleDeleteTransaction = async (id: string) => {
+        try {
+            await deleteTransaction(id);
+        } catch (error) {
+            console.error("Falha ao excluir o lançamento:", error);
+            // A notificação de erro já é tratada no AppContext.
         }
     };
     
@@ -178,7 +176,7 @@ const Transactions: React.FC = () => {
                                     <td className="p-3">
                                         <div className="flex space-x-2">
                                             <button onClick={() => handleOpenModal(t)} className="p-1 text-gray-500 dark:text-gray-400 hover:text-tech-blue"><Icon name="pencil" className="w-4 h-4" /></button>
-                                            <button onClick={() => handleDeleteTransaction(t)} className="p-1 text-gray-500 dark:text-gray-400 hover:text-red-500"><Icon name="trash" className="w-4 h-4" /></button>
+                                            <button onClick={() => handleDeleteTransaction(t.id)} className="p-1 text-gray-500 dark:text-gray-400 hover:text-red-500"><Icon name="trash" className="w-4 h-4" /></button>
                                         </div>
                                     </td>
                                 </tr>

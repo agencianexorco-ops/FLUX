@@ -1,6 +1,7 @@
+
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../supabase/client';
+import { Session, User } from '@supabase/supabase-js';
 import { Profile, AppMode } from '../types';
 
 interface AuthContextType {
@@ -8,146 +9,116 @@ interface AuthContextType {
   user: User | null;
   profile: Profile | null;
   loading: boolean;
-  authError: string | null; // Novo estado de erro
+  authError: Error | null;
   signOut: () => Promise<void>;
   updateProfile: (profile: Profile) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const AuthProvider = ({ children }: { children: ReactNode }) => {
+// FIX: Explicitly typed AuthProvider as a React.FC to resolve a type inference issue.
+export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [authError, setAuthError] = useState<string | null>(null);
+  const [authError, setAuthError] = useState<Error | null>(null);
 
   useEffect(() => {
-    const getSession = async () => {
-      try {
-        // SOLUÇÃO: Adicionado try-catch para lidar com falhas de conexão com o Supabase.
+    const getInitialSession = async () => {
         const { data: { session }, error } = await supabase.auth.getSession();
-        if (error) throw error;
-        
-        // Verifica se a resposta é válida, mas a URL é o placeholder
-        if (session === null && supabase.auth['supabaseUrl'].includes('SUA_URL_DO_PROJETO_AQUI')) {
-            throw new Error("As credenciais do Supabase não foram configuradas. Por favor, atualize o arquivo 'supabase/client.ts'.");
+        if (error) {
+            console.error("Erro ao obter sessão:", error);
+            setAuthError(error);
+        } else {
+            setSession(session);
+            setUser(session?.user ?? null);
         }
-
-        setSession(session);
-        setUser(session?.user ?? null);
-      } catch (e: any) {
-        console.error("Erro ao conectar com o Supabase:", e.message);
-        setAuthError(e.message);
-      } finally {
         setLoading(false);
-      }
     };
 
-    getSession();
+    getInitialSession();
 
-    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      // Limpa o erro ao obter um estado de autenticação válido
-      setAuthError(null);
-    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        setSession(session);
+        setUser(session?.user ?? null);
+        // Não é necessário definir carregamento aqui, pois o estado inicial já foi tratado.
+      }
+    );
 
     return () => {
-      authListener.subscription.unsubscribe();
+      subscription?.unsubscribe();
     };
   }, []);
 
   useEffect(() => {
-    const getProfile = async () => {
-        if (user) {
-            setLoading(true);
-            try {
-                const { data, error } = await supabase
-                    .from('profiles')
-                    .select('*')
-                    .eq('id', user.id)
-                    .single();
+    if (!user) {
+        setProfile(null);
+        return;
+    }
 
-                if (data) {
-                    setProfile(data);
-                } else if (error && error.code === 'PGRST116') {
-                    // Profile does not exist, which can happen with DB trigger race conditions.
-                    // SOLUTION: Create a "self-healing" mechanism. If the profile is missing, create it now.
-                    console.warn("Perfil não encontrado, criando um novo perfil para o usuário.");
-                    const newUserProfile: Omit<Profile, 'id'> = {
-                        user_name: user.user_metadata.user_name || user.email,
-                        partner_name: '',
-                        mode: AppMode.INDIVIDUAL,
-                        theme: 'dark',
-                        has_access: true, // Assuming new users get access by default.
-                        plan: 'free',
-                    };
-                    
-                    const { data: createdProfile, error: createError } = await supabase
-                        .from('profiles')
-                        .insert({ ...newUserProfile, id: user.id })
-                        .select()
-                        .single();
-                    
-                    if (createError) {
-                         throw new Error(`Falha ao criar o perfil do usuário: ${createError.message}`);
-                    }
-                    
-                    setProfile(createdProfile);
+    const fetchOrCreateProfile = async () => {
+        let { data, error } = await supabase.from('profiles').select('*').eq('id', user.id).single();
 
-                } else if (error) {
-                    // A different error occurred
-                    throw error;
-                }
+        if (error && error.code === 'PGRST116') { // "PGRST116" = 0 rows found
+          console.log('Nenhum perfil encontrado, criando um para o novo usuário.');
+          const { data: newProfile, error: insertError } = await supabase
+            .from('profiles')
+            .insert({
+              id: user.id,
+              user_name: user.user_metadata?.user_name || user.email,
+              mode: AppMode.INDIVIDUAL,
+              theme: 'dark',
+              has_access: true, // Novos usuários têm acesso por padrão
+              plan: 'pro'
+            })
+            .select()
+            .single();
 
-            } catch (error) {
-                console.error("Erro ao buscar ou criar perfil:", error);
-                setProfile(null);
-            } finally {
-                setLoading(false);
-            }
+          if (insertError) {
+            console.error('Erro ao criar perfil para novo usuário:', insertError);
+            setAuthError(insertError);
+          } else {
+            setProfile(newProfile);
+          }
+        } else if (error) {
+          console.error('Erro ao buscar perfil:', error);
+          setAuthError(error);
+        } else {
+          setProfile(data);
         }
-    }
-    // Só busca o perfil se não houver erro de autenticação
-    if (!authError) {
-        getProfile();
-    }
-  }, [user, authError]);
+    };
+
+    fetchOrCreateProfile();
+  }, [user]);
 
   const signOut = async () => {
-    await supabase.auth.signOut();
-    setProfile(null);
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+        console.error('Erro ao sair:', error);
+    }
+    // O onAuthStateChange cuidará de limpar os estados.
   };
   
-  const updateProfile = async (newProfile: Profile) => {
-      if (!user) return;
-      setLoading(true);
-      const { id, ...profileData } = newProfile;
-      const { data, error } = await supabase
-        .from('profiles')
-        .update(profileData)
-        .eq('id', user.id)
-        .select()
-        .single();
-        
-      if(error) {
-          console.error("Error updating profile", error);
-      } else if (data) {
-          setProfile(data);
-      }
-      setLoading(false);
-  }
+  const updateProfile = async (newProfileData: Profile) => {
+    if (!user) return;
+    const { id, ...profileUpdates } = newProfileData;
+    const { data, error } = await supabase
+      .from('profiles')
+      .update(profileUpdates)
+      .eq('id', user.id)
+      .select()
+      .single();
 
-  const value = {
-    session,
-    user,
-    profile,
-    loading,
-    authError,
-    signOut,
-    updateProfile,
+    if (error) {
+      console.error('Erro ao atualizar perfil:', error);
+    } else if (data) {
+      setProfile(data);
+    }
   };
+
+  const value = { session, user, profile, loading, authError, signOut, updateProfile };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
